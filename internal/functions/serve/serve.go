@@ -114,7 +114,7 @@ func restartEdgeRuntime(ctx context.Context, envFilePath string, noVerifyJWT *bo
 		Force:         true,
 	})
 	// Use network alias because Deno cannot resolve `_` in hostname
-	dbUrl := fmt.Sprintf("postgresql://postgres:postgres@%s:5432/postgres", utils.DbAliases[0])
+	dbUrl := fmt.Sprintf("postgresql://postgres:supabase123@%s:5432/postgres", utils.DbAliases[0])
 	// 3. Serve and log to console
 	fmt.Fprintln(os.Stderr, "Setting up Edge Functions runtime...")
 	return ServeFunctions(ctx, envFilePath, noVerifyJWT, importMapPath, dbUrl, runtimeOption, fsys)

@@ -44,7 +44,7 @@ import (
 	"github.com/supabase/cli/pkg/config"
 )
 
-func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignoreHealthCheck bool) error {
+func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignoreHealthCheck bool, customPassword string) error {
 	// Sanity checks.
 	{
 		if err := flags.LoadConfig(fsys); err != nil {
@@ -62,14 +62,20 @@ func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignore
 		}
 	}
 
+	// Use custom password if provided, otherwise use config password
+	dbPassword := utils.Config.Db.Password
+	if customPassword != "" {
+		dbPassword = customPassword
+	}
+
 	dbConfig := pgconn.Config{
 		Host:     utils.DbId,
 		Port:     5432,
 		User:     "postgres",
-		Password: utils.Config.Db.Password,
+		Password: dbPassword,
 		Database: "postgres",
 	}
-	if err := run(ctx, fsys, excludedContainers, dbConfig); err != nil {
+	if err := run(ctx, fsys, excludedContainers, dbConfig, customPassword); err != nil {
 		if ignoreHealthCheck && start.IsUnhealthyError(err) {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
@@ -213,7 +219,7 @@ func pullImagesUsingCompose(ctx context.Context, project types.Project) error {
 	return service.Pull(ctx, &project, api.PullOptions{IgnoreFailures: true})
 }
 
-func run(ctx context.Context, fsys afero.Fs, excludedContainers []string, dbConfig pgconn.Config, options ...func(*pgx.ConnConfig)) error {
+func run(ctx context.Context, fsys afero.Fs, excludedContainers []string, dbConfig pgconn.Config, customPassword string, options ...func(*pgx.ConnConfig)) error {
 	excluded := make(map[string]bool)
 	for _, name := range excludedContainers {
 		excluded[name] = true
@@ -239,7 +245,7 @@ func run(ctx context.Context, fsys afero.Fs, excludedContainers []string, dbConf
 
 	// Start Postgres.
 	if dbConfig.Host == utils.DbId {
-		if err := start.StartDatabase(ctx, "", fsys, os.Stderr, options...); err != nil {
+		if err := start.StartDatabase(ctx, "", fsys, os.Stderr, customPassword, options...); err != nil {
 			return err
 		}
 	}

@@ -69,7 +69,7 @@ func run(p utils.Program, ctx context.Context, schema []string, config pgconn.Co
 
 	// 2. Diff local db (source) with shadow db (target), print it.
 	source := utils.ToPostgresURL(config)
-	target := fmt.Sprintf("postgresql://postgres:postgres@127.0.0.1:%d/postgres", utils.Config.Db.ShadowPort)
+	target := fmt.Sprintf("postgresql://postgres:supabase123@127.0.0.1:%d/postgres", utils.Config.Db.ShadowPort)
 	output, err = DiffSchemaPgAdmin(ctx, source, target, schema, p)
 	return err
 }

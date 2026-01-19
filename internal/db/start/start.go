@@ -50,7 +50,7 @@ func Run(ctx context.Context, fromBackup string, fsys afero.Fs) error {
 	} else if !errors.Is(err, utils.ErrNotRunning) {
 		return err
 	}
-	err := StartDatabase(ctx, fromBackup, fsys, os.Stderr)
+	err := StartDatabase(ctx, fromBackup, fsys, os.Stderr, utils.Config.Db.Password)
 	if err != nil {
 		if err := utils.DockerRemoveAll(context.Background(), os.Stderr, utils.Config.ProjectId); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -59,9 +59,9 @@ func Run(ctx context.Context, fromBackup string, fsys afero.Fs) error {
 	return err
 }
 
-func NewContainerConfig(args ...string) container.Config {
+func NewContainerConfig(password string, args ...string) container.Config {
 	env := []string{
-		"POSTGRES_PASSWORD=" + utils.Config.Db.Password,
+		"POSTGRES_PASSWORD=" + password,
 		"POSTGRES_HOST=/var/run/postgresql",
 		"JWT_SECRET=" + utils.Config.Auth.JwtSecret.Value,
 		fmt.Sprintf("JWT_EXP=%d", utils.Config.Auth.JwtExpiry),
@@ -129,8 +129,13 @@ func NewHostConfig() container.HostConfig {
 	return hostConfig
 }
 
-func StartDatabase(ctx context.Context, fromBackup string, fsys afero.Fs, w io.Writer, options ...func(*pgx.ConnConfig)) error {
-	config := NewContainerConfig()
+func StartDatabase(ctx context.Context, fromBackup string, fsys afero.Fs, w io.Writer, customPassword string, options ...func(*pgx.ConnConfig)) error {
+	// Use custom password if provided, otherwise use config password
+	dbPassword := utils.Config.Db.Password
+	if customPassword != "" {
+		dbPassword = customPassword
+	}
+	config := NewContainerConfig(dbPassword)
 	hostConfig := NewHostConfig()
 	networkingConfig := network.NetworkingConfig{
 		EndpointsConfig: map[string]*network.EndpointSettings{
@@ -181,7 +186,7 @@ EOF`}
 	}
 	// Initialize if we are on PG14 and there's no existing db volume
 	if utils.NoBackupVolume && len(fromBackup) == 0 {
-		if err := SetupLocalDatabase(ctx, "", fsys, w, options...); err != nil {
+		if err := SetupLocalDatabase(ctx, "", fsys, w, dbPassword, options...); err != nil {
 			return err
 		}
 	}
@@ -239,7 +244,7 @@ func initCurrentBranch(fsys afero.Fs) error {
 	return utils.WriteFile(utils.CurrBranchPath, []byte("main"), fsys)
 }
 
-func initSchema(ctx context.Context, conn *pgx.Conn, host string, w io.Writer) error {
+func initSchema(ctx context.Context, conn *pgx.Conn, host string, w io.Writer, password string) error {
 	fmt.Fprintln(w, "Initialising schema...")
 	if utils.Config.Db.MajorVersion <= 14 {
 		if file, err := migration.NewMigrationFromReader(strings.NewReader(utils.GlobalsSql)); err != nil {
@@ -249,7 +254,7 @@ func initSchema(ctx context.Context, conn *pgx.Conn, host string, w io.Writer) e
 		}
 		return InitSchema14(ctx, conn)
 	}
-	return initSchema15(ctx, host)
+	return initSchema15(ctx, host, password)
 }
 
 func InitSchema14(ctx context.Context, conn *pgx.Conn) error {
@@ -264,7 +269,7 @@ func InitSchema14(ctx context.Context, conn *pgx.Conn) error {
 	return file.ExecBatch(ctx, conn)
 }
 
-func initRealtimeJob(host, jwks string) utils.DockerJob {
+func initRealtimeJob(host, jwks, password string) utils.DockerJob {
 	return utils.DockerJob{
 		Image: utils.Config.Realtime.Image,
 		Env: []string{
@@ -272,7 +277,7 @@ func initRealtimeJob(host, jwks string) utils.DockerJob {
 			"DB_HOST=" + host,
 			"DB_PORT=5432",
 			"DB_USER=" + utils.SUPERUSER_ROLE,
-			"DB_PASSWORD=" + utils.Config.Db.Password,
+			"DB_PASSWORD=" + password,
 			"DB_NAME=postgres",
 			"DB_AFTER_CONNECT_QUERY=SET search_path TO _realtime",
 			"DB_ENC_KEY=" + utils.Config.Realtime.EncryptionKey,
@@ -293,7 +298,7 @@ func initRealtimeJob(host, jwks string) utils.DockerJob {
 	}
 }
 
-func initStorageJob(host string) utils.DockerJob {
+func initStorageJob(host, password string) utils.DockerJob {
 	return utils.DockerJob{
 		Image: utils.Config.Storage.Image,
 		Env: []string{
@@ -302,7 +307,7 @@ func initStorageJob(host string) utils.DockerJob {
 			"ANON_KEY=" + utils.Config.Auth.AnonKey.Value,
 			"SERVICE_KEY=" + utils.Config.Auth.ServiceRoleKey.Value,
 			"PGRST_JWT_SECRET=" + utils.Config.Auth.JwtSecret.Value,
-			fmt.Sprintf("DATABASE_URL=postgresql://supabase_storage_admin:%s@%s:5432/postgres", utils.Config.Db.Password, host),
+			fmt.Sprintf("DATABASE_URL=postgresql://supabase_storage_admin:%s@%s:5432/postgres", password, host),
 			fmt.Sprintf("FILE_SIZE_LIMIT=%v", utils.Config.Storage.FileSizeLimit),
 			"STORAGE_BACKEND=file",
 			"STORAGE_FILE_BACKEND_PATH=/mnt",
@@ -315,14 +320,14 @@ func initStorageJob(host string) utils.DockerJob {
 	}
 }
 
-func initAuthJob(host string) utils.DockerJob {
+func initAuthJob(host, password string) utils.DockerJob {
 	return utils.DockerJob{
 		Image: utils.Config.Auth.Image,
 		Env: []string{
 			"API_EXTERNAL_URL=" + utils.Config.Api.ExternalUrl,
 			"GOTRUE_LOG_LEVEL=error",
 			"GOTRUE_DB_DRIVER=postgres",
-			fmt.Sprintf("GOTRUE_DB_DATABASE_URL=postgresql://supabase_auth_admin:%s@%s:5432/postgres", utils.Config.Db.Password, host),
+			fmt.Sprintf("GOTRUE_DB_DATABASE_URL=postgresql://supabase_auth_admin:%s@%s:5432/postgres", password, host),
 			"GOTRUE_SITE_URL=" + utils.Config.Auth.SiteUrl,
 			"GOTRUE_JWT_SECRET=" + utils.Config.Auth.JwtSecret.Value,
 		},
@@ -330,7 +335,7 @@ func initAuthJob(host string) utils.DockerJob {
 	}
 }
 
-func initSchema15(ctx context.Context, host string) error {
+func initSchema15(ctx context.Context, host, password string) error {
 	// Apply service migrations
 	var initJobs []utils.DockerJob
 	if utils.Config.Realtime.Enabled {
@@ -338,13 +343,13 @@ func initSchema15(ctx context.Context, host string) error {
 		if err != nil {
 			return err
 		}
-		initJobs = append(initJobs, initRealtimeJob(host, jwks))
+		initJobs = append(initJobs, initRealtimeJob(host, jwks, password))
 	}
 	if utils.Config.Storage.Enabled {
-		initJobs = append(initJobs, initStorageJob(host))
+		initJobs = append(initJobs, initStorageJob(host, password))
 	}
 	if utils.Config.Auth.Enabled {
-		initJobs = append(initJobs, initAuthJob(host))
+		initJobs = append(initJobs, initAuthJob(host, password))
 	}
 	logger := utils.GetDebugLogger()
 	for _, job := range initJobs {
@@ -355,20 +360,25 @@ func initSchema15(ctx context.Context, host string) error {
 	return nil
 }
 
-func SetupLocalDatabase(ctx context.Context, version string, fsys afero.Fs, w io.Writer, options ...func(*pgx.ConnConfig)) error {
-	conn, err := utils.ConnectLocalPostgres(ctx, pgconn.Config{}, options...)
+func SetupLocalDatabase(ctx context.Context, version string, fsys afero.Fs, w io.Writer, password string, options ...func(*pgx.ConnConfig)) error {
+	// Use custom password if provided, otherwise use config password
+	dbPassword := utils.Config.Db.Password
+	if password != "" {
+		dbPassword = password
+	}
+	conn, err := utils.ConnectLocalPostgres(ctx, pgconn.Config{Password: dbPassword}, options...)
 	if err != nil {
 		return err
 	}
 	defer conn.Close(context.Background())
-	if err := SetupDatabase(ctx, conn, utils.DbId, w, fsys); err != nil {
+	if err := SetupDatabase(ctx, conn, utils.DbId, w, fsys, dbPassword); err != nil {
 		return err
 	}
 	return apply.MigrateAndSeed(ctx, version, conn, fsys)
 }
 
-func SetupDatabase(ctx context.Context, conn *pgx.Conn, host string, w io.Writer, fsys afero.Fs) error {
-	if err := initSchema(ctx, conn, host, w); err != nil {
+func SetupDatabase(ctx context.Context, conn *pgx.Conn, host string, w io.Writer, fsys afero.Fs, password string) error {
+	if err := initSchema(ctx, conn, host, w, password); err != nil {
 		return err
 	}
 	// Create vault secrets first so roles.sql can reference them

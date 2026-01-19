@@ -91,7 +91,7 @@ func findDropStatements(out string) []string {
 
 func CreateShadowDatabase(ctx context.Context, port uint16) (string, error) {
 	// Disable background workers in shadow database
-	config := start.NewContainerConfig("-c", "max_worker_processes=0")
+	config := start.NewContainerConfig(utils.Config.Db.Password, "-c", "max_worker_processes=0")
 	hostPort := strconv.FormatUint(uint64(port), 10)
 	hostConfig := container.HostConfig{
 		PortBindings: nat.PortMap{"5432/tcp": []nat.PortBinding{{HostPort: hostPort}}},
@@ -127,7 +127,7 @@ func MigrateShadowDatabase(ctx context.Context, container string, fsys afero.Fs,
 		return err
 	}
 	defer conn.Close(context.Background())
-	if err := start.SetupDatabase(ctx, conn, container[:12], os.Stderr, fsys); err != nil {
+	if err := start.SetupDatabase(ctx, conn, container[:12], os.Stderr, fsys, utils.Config.Db.Password); err != nil {
 		return err
 	}
 	if _, err := conn.Exec(ctx, CREATE_TEMPLATE); err != nil {

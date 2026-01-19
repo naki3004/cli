@@ -73,7 +73,7 @@ func TestParseDatabaseConfig(t *testing.T) {
 		err = afero.WriteFile(fsys, utils.ProjectRefPath, []byte(project), 0644)
 		require.NoError(t, err)
 
-		dbURL := fmt.Sprintf("postgres://postgres:postgres@db.%s.supabase.co:6543/postgres", project)
+		dbURL := fmt.Sprintf("postgres://postgres:supabase123@db.%s.supabase.co:6543/postgres", project)
 		err = afero.WriteFile(fsys, utils.PoolerUrlPath, []byte(dbURL), 0644)
 		require.NoError(t, err)
 
