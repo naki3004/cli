@@ -154,7 +154,7 @@ func DiffDatabase(ctx context.Context, schema []string, config pgconn.Config, w 
 		Port:     utils.Config.Db.ShadowPort,
 		User:     "postgres",
 		Password: utils.Config.Db.Password,
-		Database: "postgres",
+		Database: utils.Config.Db.Database,
 	}
 	if utils.IsLocalDatabase(config) {
 		if declared, err := loadDeclaredSchemas(fsys); err != nil {

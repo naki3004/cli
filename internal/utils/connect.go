@@ -136,7 +136,7 @@ func ConnectLocalPostgres(ctx context.Context, config pgconn.Config, options ...
 		config.Password = Config.Db.Password
 	}
 	if len(config.Database) == 0 {
-		config.Database = "postgres"
+		config.Database = Config.Db.Database
 	}
 	if config.ConnectTimeout == 0 {
 		config.ConnectTimeout = 2 * time.Second

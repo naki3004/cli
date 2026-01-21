@@ -103,7 +103,7 @@ func squashMigrations(ctx context.Context, migrations []string, fsys afero.Fs, o
 		Port:     utils.Config.Db.ShadowPort,
 		User:     "postgres",
 		Password: utils.Config.Db.Password,
-		Database: "postgres",
+		Database: utils.Config.Db.Database,
 	}
 	var before, after bytes.Buffer
 	if err := migration.DumpSchema(ctx, config, &before, dump.DockerExec, opt); err != nil {

@@ -50,7 +50,7 @@ func Run(ctx context.Context, fromBackup string, fsys afero.Fs) error {
 	} else if !errors.Is(err, utils.ErrNotRunning) {
 		return err
 	}
-	err := StartDatabase(ctx, fromBackup, fsys, os.Stderr, utils.Config.Db.Password)
+	err := StartDatabase(ctx, fromBackup, fsys, os.Stderr, utils.Config.Db.Password, utils.Config.Db.Database)
 	if err != nil {
 		if err := utils.DockerRemoveAll(context.Background(), os.Stderr, utils.Config.ProjectId); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -129,11 +129,16 @@ func NewHostConfig() container.HostConfig {
 	return hostConfig
 }
 
-func StartDatabase(ctx context.Context, fromBackup string, fsys afero.Fs, w io.Writer, customPassword string, options ...func(*pgx.ConnConfig)) error {
+func StartDatabase(ctx context.Context, fromBackup string, fsys afero.Fs, w io.Writer, customPassword string, customDatabase string, options ...func(*pgx.ConnConfig)) error {
 	// Use custom password if provided, otherwise use config password
 	dbPassword := utils.Config.Db.Password
 	if customPassword != "" {
 		dbPassword = customPassword
+	}
+	// Use custom database if provided, otherwise use config database
+	dbDatabase := utils.Config.Db.Database
+	if customDatabase != "" {
+		dbDatabase = customDatabase
 	}
 	config := NewContainerConfig(dbPassword)
 	hostConfig := NewHostConfig()
@@ -186,7 +191,7 @@ EOF`}
 	}
 	// Initialize if we are on PG14 and there's no existing db volume
 	if utils.NoBackupVolume && len(fromBackup) == 0 {
-		if err := SetupLocalDatabase(ctx, "", fsys, w, dbPassword, options...); err != nil {
+		if err := SetupLocalDatabase(ctx, "", fsys, w, dbPassword, dbDatabase, options...); err != nil {
 			return err
 		}
 	}
@@ -360,13 +365,18 @@ func initSchema15(ctx context.Context, host, password string) error {
 	return nil
 }
 
-func SetupLocalDatabase(ctx context.Context, version string, fsys afero.Fs, w io.Writer, password string, options ...func(*pgx.ConnConfig)) error {
+func SetupLocalDatabase(ctx context.Context, version string, fsys afero.Fs, w io.Writer, password string, database string, options ...func(*pgx.ConnConfig)) error {
 	// Use custom password if provided, otherwise use config password
 	dbPassword := utils.Config.Db.Password
 	if password != "" {
 		dbPassword = password
 	}
-	conn, err := utils.ConnectLocalPostgres(ctx, pgconn.Config{Password: dbPassword}, options...)
+	// Use custom database if provided, otherwise use config database
+	dbDatabase := utils.Config.Db.Database
+	if database != "" {
+		dbDatabase = database
+	}
+	conn, err := utils.ConnectLocalPostgres(ctx, pgconn.Config{Password: dbPassword, Database: dbDatabase}, options...)
 	if err != nil {
 		return err
 	}

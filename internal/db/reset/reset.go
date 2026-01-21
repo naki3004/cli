@@ -134,7 +134,7 @@ func resetDatabase15(ctx context.Context, version string, fsys afero.Fs, options
 	if err := start.WaitForHealthyService(ctx, utils.Config.Db.HealthTimeout, utils.DbId); err != nil {
 		return err
 	}
-	if err := start.SetupLocalDatabase(ctx, version, fsys, os.Stderr, utils.Config.Db.Password, options...); err != nil {
+	if err := start.SetupLocalDatabase(ctx, version, fsys, os.Stderr, utils.Config.Db.Password, utils.Config.Db.Database, options...); err != nil {
 		return err
 	}
 	fmt.Fprintln(os.Stderr, "Restarting containers...")

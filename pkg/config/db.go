@@ -82,6 +82,7 @@ type (
 		HealthTimeout       time.Duration       `toml:"health_timeout"`
 		MajorVersion        uint                `toml:"major_version"`
 		Password            string              `toml:"-"`
+		Database            string              `toml:"-"`
 		RootKey             Secret              `toml:"root_key"`
 		Pooler              pooler              `toml:"pooler"`
 		Migrations          migrations          `toml:"migrations"`

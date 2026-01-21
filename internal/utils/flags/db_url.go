@@ -76,7 +76,7 @@ func ParseDatabaseConfig(ctx context.Context, flagSet *pflag.FlagSet, fsys afero
 		DbConfig.Port = utils.Config.Db.Port
 		DbConfig.User = "postgres"
 		DbConfig.Password = utils.Config.Db.Password
-		DbConfig.Database = "postgres"
+		DbConfig.Database = utils.Config.Db.Database
 	case linked:
 		if err := LoadProjectRef(fsys); err != nil {
 			return err

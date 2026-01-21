@@ -89,7 +89,7 @@ func TestStartDatabase(t *testing.T) {
 		conn.Query(roles).
 			Reply("CREATE ROLE")
 		// Run test
-		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, conn.Intercept)
+		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database, conn.Intercept)
 		// Check error
 		assert.NoError(t, err)
 		assert.Empty(t, apitest.ListUnmatchedRequests())
@@ -123,7 +123,7 @@ func TestStartDatabase(t *testing.T) {
 				},
 			}})
 		// Run test
-		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password)
+		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database)
 		// Check error
 		assert.NoError(t, err)
 		assert.Empty(t, apitest.ListUnmatchedRequests())
@@ -148,7 +148,7 @@ func TestStartDatabase(t *testing.T) {
 			Get("/v" + utils.Docker.ClientVersion() + "/images/" + utils.GetRegistryImageUrl(utils.Config.Db.Image) + "/json").
 			Reply(http.StatusServiceUnavailable)
 		// Run test
-		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password)
+		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database)
 		// Check error
 		assert.ErrorContains(t, err, "request returned 503 Service Unavailable for API route and version")
 		assert.Empty(t, apitest.ListUnmatchedRequests())
@@ -253,7 +253,7 @@ func TestSetupDatabase(t *testing.T) {
 			Query(roles).
 			Reply("CREATE ROLE")
 		// Run test
-		err := SetupLocalDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, conn.Intercept)
+		err := SetupLocalDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database, conn.Intercept)
 		// Check error
 		assert.NoError(t, err)
 		assert.Empty(t, apitest.ListUnmatchedRequests())
@@ -262,7 +262,7 @@ func TestSetupDatabase(t *testing.T) {
 	t.Run("throws error on connect failure", func(t *testing.T) {
 		utils.Config.Db.Port = 0
 		// Run test
-		err := SetupLocalDatabase(context.Background(), "", nil, io.Discard, utils.Config.Db.Password)
+		err := SetupLocalDatabase(context.Background(), "", nil, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database)
 		// Check error
 		assert.ErrorContains(t, err, "invalid port (outside range)")
 	})
@@ -303,7 +303,7 @@ func TestSetupDatabase(t *testing.T) {
 		conn := pgtest.NewConn()
 		defer conn.Close(t)
 		// Run test
-		err := SetupLocalDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, conn.Intercept)
+		err := SetupLocalDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database, conn.Intercept)
 		// Check error
 		assert.ErrorIs(t, err, os.ErrPermission)
 		assert.Empty(t, apitest.ListUnmatchedRequests())
@@ -349,7 +349,7 @@ func TestStartDatabaseWithCustomSettings(t *testing.T) {
 		defer conn.Close(t)
 
 		// Run test
-		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, conn.Intercept)
+		err := StartDatabase(context.Background(), "", fsys, io.Discard, utils.Config.Db.Password, utils.Config.Db.Database, conn.Intercept)
 
 		// Check error
 		assert.NoError(t, err)

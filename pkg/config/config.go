@@ -342,6 +342,7 @@ func NewConfig(editors ...ConfigEditor) config {
 		Db: db{
 			Image:    Images.Pg,
 			Password: "postgres",
+			Database: "postgres",
 			RootKey: Secret{
 				Value: "d4dc5b6d4a1d6a10b2c1e76112c994d65db7cec380572cc1839624d4be3fa275",
 			},

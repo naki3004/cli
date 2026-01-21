@@ -44,7 +44,7 @@ import (
 	"github.com/supabase/cli/pkg/config"
 )
 
-func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignoreHealthCheck bool, customPassword string) error {
+func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignoreHealthCheck bool, customPassword string, customDatabase string) error {
 	// Sanity checks.
 	{
 		if err := flags.LoadConfig(fsys); err != nil {
@@ -68,14 +68,20 @@ func Run(ctx context.Context, fsys afero.Fs, excludedContainers []string, ignore
 		dbPassword = customPassword
 	}
 
+	// Use custom database if provided, otherwise use config database
+	dbDatabase := utils.Config.Db.Database
+	if customDatabase != "" {
+		dbDatabase = customDatabase
+	}
+
 	dbConfig := pgconn.Config{
 		Host:     utils.DbId,
 		Port:     5432,
 		User:     "postgres",
 		Password: dbPassword,
-		Database: "postgres",
+		Database: dbDatabase,
 	}
-	if err := run(ctx, fsys, excludedContainers, dbConfig, customPassword); err != nil {
+	if err := run(ctx, fsys, excludedContainers, dbConfig, customPassword, customDatabase); err != nil {
 		if ignoreHealthCheck && start.IsUnhealthyError(err) {
 			fmt.Fprintln(os.Stderr, err)
 		} else {
@@ -219,7 +225,7 @@ func pullImagesUsingCompose(ctx context.Context, project types.Project) error {
 	return service.Pull(ctx, &project, api.PullOptions{IgnoreFailures: true})
 }
 
-func run(ctx context.Context, fsys afero.Fs, excludedContainers []string, dbConfig pgconn.Config, customPassword string, options ...func(*pgx.ConnConfig)) error {
+func run(ctx context.Context, fsys afero.Fs, excludedContainers []string, dbConfig pgconn.Config, customPassword string, customDatabase string, options ...func(*pgx.ConnConfig)) error {
 	excluded := make(map[string]bool)
 	for _, name := range excludedContainers {
 		excluded[name] = true
@@ -245,7 +251,7 @@ func run(ctx context.Context, fsys afero.Fs, excludedContainers []string, dbConf
 
 	// Start Postgres.
 	if dbConfig.Host == utils.DbId {
-		if err := start.StartDatabase(ctx, "", fsys, os.Stderr, customPassword, options...); err != nil {
+		if err := start.StartDatabase(ctx, "", fsys, os.Stderr, customPassword, customDatabase, options...); err != nil {
 			return err
 		}
 	}
